@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+
+  claudeApiKey      String?
+  elevenLabsApiKey  String?
+  heygenApiKey      String?
+
+  heygenAvatarId    String?
+  elevenLabsVoiceId String?
+
+  videos    Video[]
+  topics    Topic[]
+  schedules Schedule[]
+  memories  ProjectMemory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Video {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  topic  String
+  script String? @db.Text
+
+  status VideoStatus @default(PENDING)
+
+  heygenVideoId String?
+
+  videoUrl     String?
+  audioUrl     String?
+  thumbnailUrl String?
+  duration     Int?
+
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+enum VideoStatus {
+  PENDING
+  GENERATING_SCRIPT
+  GENERATING_AUDIO
+  GENERATING_VIDEO
+  COMPLETED
+  FAILED
+}
+
+model Topic {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String
+  notes String? @db.Text
+  used  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Schedule {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  frequency   ScheduleFreq
+  cronExpr    String?
+  active      Boolean      @default(true)
+  topicSource TopicSource  @default(FROM_LIST)
+
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([active, nextRunAt])
+}
+
+enum ScheduleFreq {
+  HOURLY
+  DAILY
+  WEEKLY
+  CUSTOM
+}
+
+enum TopicSource {
+  FROM_LIST
+  AI_GENERATED
+}
+
+model ProjectMemory {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  key   String
+  value String @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
