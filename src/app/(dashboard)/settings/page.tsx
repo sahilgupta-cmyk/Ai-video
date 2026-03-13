@@ -4,15 +4,19 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SettingsData {
   claudeApiKey: string;
+  openaiApiKey: string;
+  aiProvider: string;
   elevenLabsApiKey: string;
   heygenApiKey: string;
   heygenAvatarId: string;
   elevenLabsVoiceId: string;
   hasClaudeKey?: boolean;
+  hasOpenaiKey?: boolean;
   hasElevenLabsKey?: boolean;
   hasHeygenKey?: boolean;
 }
@@ -20,6 +24,8 @@ interface SettingsData {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsData>({
     claudeApiKey: "",
+    openaiApiKey: "",
+    aiProvider: "claude",
     elevenLabsApiKey: "",
     heygenApiKey: "",
     heygenAvatarId: "",
@@ -52,7 +58,6 @@ export default function SettingsPage() {
 
       if (res.ok) {
         setMessage("Settings saved successfully!");
-        // Refresh to get masked keys
         const refreshed = await fetch("/api/settings").then((r) => r.json());
         setSettings(refreshed);
       } else {
@@ -81,6 +86,31 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* AI Provider Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Provider</CardTitle>
+          <CardDescription>
+            Choose which AI to use for script generation and topic suggestions. You can configure both and switch anytime.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Active Provider</Label>
+            <Select
+              value={settings.aiProvider}
+              onChange={(e) => setSettings({ ...settings, aiProvider: e.target.value })}
+            >
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="openai">ChatGPT (OpenAI)</option>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              This determines which AI generates your scripts and topics
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* API Keys */}
       <Card>
         <CardHeader>
@@ -91,12 +121,29 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Claude API Key {settings.hasClaudeKey && <span className="text-green-600">(configured)</span>}</Label>
+            <Label>
+              Claude API Key{" "}
+              {settings.hasClaudeKey && <span className="text-green-600">(configured)</span>}
+              {settings.aiProvider === "claude" && <span className="text-blue-600 ml-1">(active)</span>}
+            </Label>
             <Input
               type="password"
               placeholder="sk-ant-..."
               value={settings.claudeApiKey}
               onChange={(e) => setSettings({ ...settings, claudeApiKey: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>
+              OpenAI API Key{" "}
+              {settings.hasOpenaiKey && <span className="text-green-600">(configured)</span>}
+              {settings.aiProvider === "openai" && <span className="text-blue-600 ml-1">(active)</span>}
+            </Label>
+            <Input
+              type="password"
+              placeholder="sk-..."
+              value={settings.openaiApiKey}
+              onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
             />
           </div>
           <div className="space-y-2">

@@ -14,6 +14,8 @@ model User {
   name         String?
 
   claudeApiKey      String?
+  openaiApiKey      String?
+  aiProvider        String   @default("claude") // "claude" or "openai"
   elevenLabsApiKey  String?
   heygenApiKey      String?
 

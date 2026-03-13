@@ -6,6 +6,8 @@ import { createAvatarVideo } from "./avatar-service";
 interface UserWithKeys {
   id: string;
   claudeApiKey: string | null;
+  openaiApiKey: string | null;
+  aiProvider: string;
   elevenLabsApiKey: string | null;
   heygenApiKey: string | null;
   heygenAvatarId: string | null;
@@ -13,11 +15,27 @@ interface UserWithKeys {
 }
 
 function getAvailableSteps(user: UserWithKeys) {
+  const hasScript = (user.aiProvider === "openai" && !!user.openaiApiKey) ||
+                    (user.aiProvider === "claude" && !!user.claudeApiKey) ||
+                    (!!user.claudeApiKey || !!user.openaiApiKey); // fallback: any key works
   return {
-    hasScript: !!user.claudeApiKey,
+    hasScript,
     hasAudio: !!user.elevenLabsApiKey && !!user.elevenLabsVoiceId,
     hasVideo: !!user.heygenApiKey && !!user.heygenAvatarId,
   };
+}
+
+function getScriptApiKey(user: UserWithKeys): { apiKey: string; provider: "claude" | "openai" } {
+  if (user.aiProvider === "openai" && user.openaiApiKey) {
+    return { apiKey: user.openaiApiKey, provider: "openai" };
+  }
+  if (user.aiProvider === "claude" && user.claudeApiKey) {
+    return { apiKey: user.claudeApiKey, provider: "claude" };
+  }
+  // Fallback: use whichever key is available
+  if (user.claudeApiKey) return { apiKey: user.claudeApiKey, provider: "claude" };
+  if (user.openaiApiKey) return { apiKey: user.openaiApiKey, provider: "openai" };
+  throw new Error("No AI API key configured. Please add a Claude or OpenAI key in Settings.");
 }
 
 async function fetchVideoWithUser(videoId: string) {
@@ -47,7 +65,7 @@ export async function runVideoPipeline(videoId: string) {
   const { hasScript, hasAudio, hasVideo } = getAvailableSteps(user);
 
   if (!hasScript) {
-    await failVideo(videoId, "No Claude API key configured. Please add it in Settings.");
+    await failVideo(videoId, "No AI API key configured. Please add a Claude or OpenAI key in Settings.");
     return;
   }
 
@@ -58,10 +76,12 @@ export async function runVideoPipeline(videoId: string) {
       data: { status: "GENERATING_SCRIPT" },
     });
 
+    const { apiKey: scriptApiKey, provider } = getScriptApiKey(user);
     const script = await generateScript({
       topic: video.topic,
       userId: user.id,
-      apiKey: user.claudeApiKey!,
+      apiKey: scriptApiKey,
+      provider,
     });
 
     await prisma.video.update({
@@ -214,12 +234,9 @@ export async function regenerateScript(videoId: string) {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
 
-  if (!user.claudeApiKey) {
-    await failVideo(videoId, "No Claude API key configured.");
-    return;
-  }
-
   try {
+    const { apiKey: scriptApiKey, provider } = getScriptApiKey(user);
+
     await prisma.video.update({
       where: { id: videoId },
       data: { status: "GENERATING_SCRIPT" },
@@ -228,7 +245,8 @@ export async function regenerateScript(videoId: string) {
     const script = await generateScript({
       topic: video.topic,
       userId: user.id,
-      apiKey: user.claudeApiKey,
+      apiKey: scriptApiKey,
+      provider,
     });
 
     await prisma.video.update({

@@ -53,13 +53,18 @@ export interface MemoryRecord {
   value: string;
 }
 
+export type AIProvider = "claude" | "openai";
+
 export interface UserSettings {
   claudeApiKey: string;
+  openaiApiKey: string;
+  aiProvider: AIProvider;
   elevenLabsApiKey: string;
   heygenApiKey: string;
   heygenAvatarId: string;
   elevenLabsVoiceId: string;
   hasClaudeKey?: boolean;
+  hasOpenaiKey?: boolean;
   hasElevenLabsKey?: boolean;
   hasHeygenKey?: boolean;
 }

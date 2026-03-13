@@ -12,6 +12,8 @@ export async function GET() {
       where: { id: userId },
       select: {
         claudeApiKey: true,
+        openaiApiKey: true,
+        aiProvider: true,
         elevenLabsApiKey: true,
         heygenApiKey: true,
         heygenAvatarId: true,
@@ -23,14 +25,16 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Return masked keys (only show last 4 chars)
     return NextResponse.json({
       claudeApiKey: user.claudeApiKey ? `****${decrypt(user.claudeApiKey).slice(-4)}` : "",
+      openaiApiKey: user.openaiApiKey ? `****${decrypt(user.openaiApiKey).slice(-4)}` : "",
+      aiProvider: user.aiProvider || "claude",
       elevenLabsApiKey: user.elevenLabsApiKey ? `****${decrypt(user.elevenLabsApiKey).slice(-4)}` : "",
       heygenApiKey: user.heygenApiKey ? `****${decrypt(user.heygenApiKey).slice(-4)}` : "",
       heygenAvatarId: user.heygenAvatarId || "",
       elevenLabsVoiceId: user.elevenLabsVoiceId || "",
       hasClaudeKey: !!user.claudeApiKey,
+      hasOpenaiKey: !!user.openaiApiKey,
       hasElevenLabsKey: !!user.elevenLabsApiKey,
       hasHeygenKey: !!user.heygenApiKey,
     });
@@ -47,6 +51,8 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const {
       claudeApiKey,
+      openaiApiKey,
+      aiProvider,
       elevenLabsApiKey,
       heygenApiKey,
       heygenAvatarId,
@@ -55,9 +61,14 @@ export async function PUT(req: Request) {
 
     const updateData: Record<string, string | null> = {};
 
-    // Only update keys that were actually provided (not masked values)
     if (claudeApiKey && !claudeApiKey.startsWith("****")) {
       updateData.claudeApiKey = encrypt(claudeApiKey);
+    }
+    if (openaiApiKey && !openaiApiKey.startsWith("****")) {
+      updateData.openaiApiKey = encrypt(openaiApiKey);
+    }
+    if (aiProvider !== undefined && (aiProvider === "claude" || aiProvider === "openai")) {
+      updateData.aiProvider = aiProvider;
     }
     if (elevenLabsApiKey && !elevenLabsApiKey.startsWith("****")) {
       updateData.elevenLabsApiKey = encrypt(elevenLabsApiKey);

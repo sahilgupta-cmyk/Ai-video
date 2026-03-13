@@ -19,8 +19,10 @@ export default function CreatePage() {
   const [error, setError] = useState("");
   const [apiKeys, setApiKeys] = useState({
     hasClaudeKey: false,
+    hasOpenaiKey: false,
     hasElevenLabsKey: false,
     hasHeygenKey: false,
+    aiProvider: "claude" as string,
   });
 
   useEffect(() => {
@@ -29,8 +31,10 @@ export default function CreatePage() {
       .then((data) =>
         setApiKeys({
           hasClaudeKey: data.hasClaudeKey || false,
+          hasOpenaiKey: data.hasOpenaiKey || false,
           hasElevenLabsKey: data.hasElevenLabsKey || false,
           hasHeygenKey: data.hasHeygenKey || false,
+          aiProvider: data.aiProvider || "claude",
         })
       )
       .catch(console.error);
@@ -57,8 +61,9 @@ export default function CreatePage() {
       }
     }
 
-    if (!apiKeys.hasClaudeKey) {
-      setError("Claude API key is required. Please configure it in Settings.");
+    const hasAnyAiKey = apiKeys.hasClaudeKey || apiKeys.hasOpenaiKey;
+    if (!hasAnyAiKey) {
+      setError("An AI API key (Claude or OpenAI) is required. Please configure one in Settings.");
       return;
     }
 
@@ -103,8 +108,11 @@ export default function CreatePage() {
         <CardContent>
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${apiKeys.hasClaudeKey ? "bg-green-500" : "bg-red-500"}`} />
-              <span className="text-sm">Script (Claude API)</span>
+              <span className={`w-3 h-3 rounded-full ${(apiKeys.hasClaudeKey || apiKeys.hasOpenaiKey) ? "bg-green-500" : "bg-red-500"}`} />
+              <span className="text-sm">
+                Script ({apiKeys.aiProvider === "openai" ? "OpenAI" : "Claude"}{" "}
+                {(apiKeys.hasClaudeKey || apiKeys.hasOpenaiKey) ? "" : "— no API key"})
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className={`w-3 h-3 rounded-full ${apiKeys.hasElevenLabsKey ? "bg-green-500" : "bg-yellow-500"}`} />
@@ -191,7 +199,7 @@ export default function CreatePage() {
             <Switch checked={autoApprove} onCheckedChange={setAutoApprove} />
           </div>
 
-          <Button onClick={handleCreate} disabled={creating || !apiKeys.hasClaudeKey} className="w-full">
+          <Button onClick={handleCreate} disabled={creating || !(apiKeys.hasClaudeKey || apiKeys.hasOpenaiKey)} className="w-full">
             {creating
               ? "Creating..."
               : mode === "single"
