@@ -11,7 +11,9 @@ import type { VideoRecord } from "@/types";
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
   PENDING: "secondary",
   GENERATING_SCRIPT: "warning",
+  SCRIPT_READY: "warning",
   GENERATING_AUDIO: "warning",
+  AUDIO_READY: "warning",
   GENERATING_VIDEO: "warning",
   COMPLETED: "success",
   FAILED: "destructive",
@@ -62,7 +64,9 @@ export default function VideosPage() {
           <option value="ALL">All Status</option>
           <option value="PENDING">Pending</option>
           <option value="GENERATING_SCRIPT">Generating Script</option>
+          <option value="SCRIPT_READY">Script Ready</option>
           <option value="GENERATING_AUDIO">Generating Audio</option>
+          <option value="AUDIO_READY">Audio Ready</option>
           <option value="GENERATING_VIDEO">Generating Video</option>
           <option value="COMPLETED">Completed</option>
           <option value="FAILED">Failed</option>

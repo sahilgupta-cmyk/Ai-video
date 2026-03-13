@@ -87,6 +87,7 @@ export async function POST(req: Request) {
           data: {
             userId: schedule.userId,
             topic,
+            autoApprove: true, // Scheduled videos auto-approve all steps
             status: "PENDING",
           },
         });

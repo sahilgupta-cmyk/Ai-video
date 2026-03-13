@@ -25,7 +25,11 @@ export async function POST(req: Request) {
     if (!userId) return unauthorized();
 
     const body = await req.json();
-    const { topics } = body as { topics: string[] };
+    const { topics, autoApprove, topicId } = body as {
+      topics: string[];
+      autoApprove?: boolean;
+      topicId?: string;
+    };
 
     if (!topics || !Array.isArray(topics) || topics.length === 0) {
       return badRequest("At least one topic is required");
@@ -37,6 +41,8 @@ export async function POST(req: Request) {
           data: {
             userId,
             topic: topic.trim(),
+            topicId: topicId || null,
+            autoApprove: autoApprove ?? false,
             status: "PENDING",
           },
         })

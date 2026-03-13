@@ -34,10 +34,12 @@ model Video {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  topic  String
-  script String? @db.Text
+  topic   String
+  topicId String?
+  script  String? @db.Text
 
-  status VideoStatus @default(PENDING)
+  status      VideoStatus @default(PENDING)
+  autoApprove Boolean     @default(false)
 
   heygenVideoId String?
 
@@ -57,7 +59,9 @@ model Video {
 enum VideoStatus {
   PENDING
   GENERATING_SCRIPT
+  SCRIPT_READY
   GENERATING_AUDIO
+  AUDIO_READY
   GENERATING_VIDEO
   COMPLETED
   FAILED
@@ -68,9 +72,10 @@ model Topic {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title String
-  notes String? @db.Text
-  used  Boolean @default(false)
+  title    String
+  notes    String?  @db.Text
+  category String?
+  used     Boolean  @default(false)
 
   createdAt DateTime @default(now())
 

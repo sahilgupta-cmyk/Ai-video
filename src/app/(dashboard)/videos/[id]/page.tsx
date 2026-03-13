@@ -3,52 +3,170 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import type { VideoRecord } from "@/types";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
   PENDING: "secondary",
   GENERATING_SCRIPT: "warning",
+  SCRIPT_READY: "warning",
   GENERATING_AUDIO: "warning",
+  AUDIO_READY: "warning",
   GENERATING_VIDEO: "warning",
   COMPLETED: "success",
   FAILED: "destructive",
 };
+
+type StepStatus = "completed" | "active" | "waiting" | "locked" | "unavailable";
+
+function getStepStatuses(
+  videoStatus: string,
+  hasAudio: boolean,
+  hasVideo: boolean
+): { script: StepStatus; audio: StepStatus; video: StepStatus } {
+  const statusOrder = [
+    "PENDING",
+    "GENERATING_SCRIPT",
+    "SCRIPT_READY",
+    "GENERATING_AUDIO",
+    "AUDIO_READY",
+    "GENERATING_VIDEO",
+    "COMPLETED",
+    "FAILED",
+  ];
+
+  const idx = statusOrder.indexOf(videoStatus);
+
+  // Script step
+  let script: StepStatus = "locked";
+  if (idx >= 2) script = "completed"; // SCRIPT_READY or beyond
+  else if (idx === 1) script = "active"; // GENERATING_SCRIPT
+  else if (idx === 0) script = "waiting"; // PENDING
+
+  // Audio step
+  let audio: StepStatus = !hasAudio ? "unavailable" : "locked";
+  if (hasAudio) {
+    if (idx >= 4) audio = "completed"; // AUDIO_READY or beyond
+    else if (idx === 3) audio = "active"; // GENERATING_AUDIO
+    else if (idx === 2) audio = "waiting"; // SCRIPT_READY (waiting for approval)
+  }
+
+  // Video step
+  let video: StepStatus = !hasVideo ? "unavailable" : "locked";
+  if (hasVideo) {
+    if (videoStatus === "COMPLETED") video = "completed";
+    else if (idx === 5) video = "active"; // GENERATING_VIDEO
+    else if (idx === 4) video = "waiting"; // AUDIO_READY
+    else if (!hasAudio && idx === 2) video = "waiting"; // No audio, waiting after script
+  }
+
+  // If FAILED, mark the current active step
+  if (videoStatus === "FAILED") {
+    script = idx <= 1 ? "active" : "completed";
+    if (hasAudio) audio = idx >= 2 && idx <= 3 ? "active" : idx >= 4 ? "completed" : "locked";
+    if (hasVideo) video = idx >= 4 ? "active" : "locked";
+  }
+
+  return { script, audio, video };
+}
+
+function StepIcon({ status }: { status: StepStatus }) {
+  if (status === "completed")
+    return <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-sm font-bold">&#10003;</div>;
+  if (status === "active")
+    return <div className="w-8 h-8 rounded-full bg-yellow-500 animate-pulse flex items-center justify-center text-white text-sm font-bold">&#9679;</div>;
+  if (status === "waiting")
+    return <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">&#8987;</div>;
+  if (status === "unavailable")
+    return <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-sm">&#10007;</div>;
+  return <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-sm">&#8226;</div>;
+}
+
+function StepLabel({ status }: { status: StepStatus }) {
+  if (status === "completed") return <span className="text-green-600 text-xs font-medium">Complete</span>;
+  if (status === "active") return <span className="text-yellow-600 text-xs font-medium">In Progress</span>;
+  if (status === "waiting") return <span className="text-blue-600 text-xs font-medium">Awaiting Approval</span>;
+  if (status === "unavailable") return <span className="text-muted-foreground text-xs">API Key Required</span>;
+  return <span className="text-muted-foreground text-xs">Pending</span>;
+}
 
 export default function VideoDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [apiKeys, setApiKeys] = useState({ hasClaudeKey: false, hasElevenLabsKey: false, hasHeygenKey: false });
+  const [editingScript, setEditingScript] = useState(false);
+  const [editedScript, setEditedScript] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchVideo = useCallback(async () => {
     try {
       const res = await fetch(`/api/videos/${id}`);
       if (res.ok) {
-        setVideo(await res.json());
+        const data = await res.json();
+        setVideo(data);
+        if (!editingScript) setEditedScript(data.script || "");
       } else {
         router.push("/videos");
       }
     } catch {
       console.error("Failed to fetch video");
     }
-  }, [id, router]);
+  }, [id, router, editingScript]);
 
   useEffect(() => {
     fetchVideo().finally(() => setLoading(false));
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) =>
+        setApiKeys({
+          hasClaudeKey: data.hasClaudeKey || false,
+          hasElevenLabsKey: data.hasElevenLabsKey || false,
+          hasHeygenKey: data.hasHeygenKey || false,
+        })
+      )
+      .catch(console.error);
+  }, [fetchVideo]);
 
+  useEffect(() => {
+    if (!video) return;
+    const needsPolling = !["COMPLETED", "FAILED", "SCRIPT_READY", "AUDIO_READY"].includes(video.status);
+    if (!needsPolling) return;
     const interval = setInterval(fetchVideo, 5000);
     return () => clearInterval(interval);
-  }, [fetchVideo]);
+  }, [video, fetchVideo]);
+
+  async function handleApprove(action: "approve" | "regenerate") {
+    setActionLoading(true);
+    try {
+      const body: Record<string, string> = { action };
+      if (action === "approve" && editingScript && editedScript.trim() !== video?.script) {
+        body.editedScript = editedScript;
+      }
+      await fetch(`/api/videos/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setEditingScript(false);
+      setTimeout(fetchVideo, 1000);
+    } catch (error) {
+      console.error("Action failed:", error);
+    }
+    setActionLoading(false);
+  }
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
   if (!video) return null;
 
-  const isProcessing = !["COMPLETED", "FAILED"].includes(video.status);
+  const steps = getStepStatuses(video.status, apiKeys.hasElevenLabsKey, apiKeys.hasHeygenKey);
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="outline" onClick={() => router.push("/videos")}>
           Back
@@ -57,6 +175,7 @@ export default function VideoDetailPage() {
           <h1 className="text-2xl font-bold">{video.topic}</h1>
           <p className="text-muted-foreground">
             Created {new Date(video.createdAt).toLocaleString()}
+            {video.autoApprove && " · Auto-approve enabled"}
           </p>
         </div>
         <Badge variant={statusVariant[video.status] || "secondary"} className="text-sm">
@@ -64,36 +183,7 @@ export default function VideoDetailPage() {
         </Badge>
       </div>
 
-      {/* Video Player */}
-      {video.videoUrl && (
-        <Card>
-          <CardContent className="p-0">
-            <video
-              src={video.videoUrl}
-              controls
-              className="w-full rounded-lg"
-              poster={video.thumbnailUrl || undefined}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {isProcessing && (
-        <Card>
-          <CardContent className="py-10 text-center">
-            <div className="animate-pulse">
-              <p className="text-lg font-medium">Processing your video...</p>
-              <p className="text-muted-foreground mt-1">
-                Current step: {video.status.replace(/_/g, " ").toLowerCase()}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                This page auto-refreshes every 5 seconds
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Error */}
       {video.status === "FAILED" && video.errorMessage && (
         <Card className="border-destructive">
           <CardHeader>
@@ -105,49 +195,199 @@ export default function VideoDetailPage() {
         </Card>
       )}
 
-      {/* Actions */}
-      {video.status === "COMPLETED" && video.videoUrl && (
-        <Card>
+      {/* Pipeline Stepper */}
+      <div className="space-y-4">
+        {/* Step 1: Script */}
+        <Card className={steps.script === "active" ? "border-yellow-500" : steps.script === "waiting" ? "border-blue-500" : ""}>
           <CardHeader>
-            <CardTitle>Actions</CardTitle>
+            <div className="flex items-center gap-3">
+              <StepIcon status={steps.script} />
+              <div className="flex-1">
+                <CardTitle className="text-lg">Step 1: Script</CardTitle>
+                <StepLabel status={steps.script} />
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="flex gap-3">
-            <a
-              href={video.videoUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              Download Video
-            </a>
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigator.clipboard.writeText(video.videoUrl!);
-                alert("Video URL copied to clipboard!");
-              }}
-            >
-              Copy Share Link
-            </Button>
-          </CardContent>
+          {(video.script || steps.script === "active") && (
+            <CardContent>
+              {steps.script === "active" && !video.script && (
+                <div className="animate-pulse text-muted-foreground">Generating script...</div>
+              )}
+              {video.script && (
+                <>
+                  {editingScript ? (
+                    <Textarea
+                      value={editedScript}
+                      onChange={(e) => setEditedScript(e.target.value)}
+                      rows={12}
+                      className="font-mono text-sm"
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg max-h-80 overflow-y-auto">
+                      {video.script}
+                    </div>
+                  )}
+                  {video.status === "SCRIPT_READY" && (
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        onClick={() => handleApprove("approve")}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? "Processing..." : "Approve Script"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleApprove("regenerate")}
+                        disabled={actionLoading}
+                      >
+                        Regenerate
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingScript(!editingScript);
+                          if (!editingScript) setEditedScript(video.script || "");
+                        }}
+                      >
+                        {editingScript ? "Cancel Edit" : "Edit"}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          )}
         </Card>
-      )}
 
-      {/* Script */}
-      {video.script && (
-        <Card>
+        {/* Step 2: Audio */}
+        <Card className={
+          steps.audio === "unavailable" ? "opacity-60" :
+          steps.audio === "active" ? "border-yellow-500" :
+          steps.audio === "waiting" ? "border-blue-500" : ""
+        }>
           <CardHeader>
-            <CardTitle>Script</CardTitle>
-            <CardDescription>Generated podcast script</CardDescription>
+            <div className="flex items-center gap-3">
+              <StepIcon status={steps.audio} />
+              <div className="flex-1">
+                <CardTitle className="text-lg">Step 2: Audio</CardTitle>
+                <StepLabel status={steps.audio} />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg max-h-96 overflow-y-auto">
-              {video.script}
-            </div>
+            {steps.audio === "unavailable" && (
+              <p className="text-sm text-muted-foreground">
+                ElevenLabs API key and Voice ID required. Configure in Settings.
+              </p>
+            )}
+            {steps.audio === "active" && (
+              <div className="animate-pulse text-muted-foreground">Generating audio...</div>
+            )}
+            {steps.audio === "locked" && (
+              <p className="text-sm text-muted-foreground">Waiting for script approval...</p>
+            )}
+            {(video.status === "AUDIO_READY" || (steps.audio === "completed" && video.audioUrl)) && (
+              <>
+                <div className="bg-muted p-4 rounded-lg text-center">
+                  <p className="text-sm text-muted-foreground mb-2">Audio generated successfully</p>
+                  {video.audioUrl && video.audioUrl !== "audio-generated" && (
+                    <audio controls className="w-full mt-2">
+                      <source src={video.audioUrl} type="audio/mpeg" />
+                    </audio>
+                  )}
+                </div>
+                {video.status === "AUDIO_READY" && (
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      onClick={() => handleApprove("approve")}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? "Processing..." : "Approve Audio"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleApprove("regenerate")}
+                      disabled={actionLoading}
+                    >
+                      Regenerate
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
-      )}
+
+        {/* Step 3: Video */}
+        <Card className={
+          steps.video === "unavailable" ? "opacity-60" :
+          steps.video === "active" ? "border-yellow-500" :
+          steps.video === "waiting" ? "border-blue-500" : ""
+        }>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <StepIcon status={steps.video} />
+              <div className="flex-1">
+                <CardTitle className="text-lg">Step 3: Video</CardTitle>
+                <StepLabel status={steps.video} />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {steps.video === "unavailable" && (
+              <p className="text-sm text-muted-foreground">
+                HeyGen API key and Avatar ID required. Configure in Settings.
+              </p>
+            )}
+            {steps.video === "active" && (
+              <div className="animate-pulse text-muted-foreground">
+                Generating video... This may take several minutes.
+              </div>
+            )}
+            {steps.video === "locked" && (
+              <p className="text-sm text-muted-foreground">Waiting for previous steps...</p>
+            )}
+            {steps.video === "waiting" && (
+              <p className="text-sm text-muted-foreground">Waiting for audio approval...</p>
+            )}
+            {video.status === "COMPLETED" && video.videoUrl && (
+              <>
+                <video
+                  src={video.videoUrl}
+                  controls
+                  className="w-full rounded-lg"
+                  poster={video.thumbnailUrl || undefined}
+                />
+                <div className="flex gap-3 mt-4">
+                  <a
+                    href={video.videoUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Download Video
+                  </a>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(video.videoUrl!);
+                      alert("Video URL copied!");
+                    }}
+                  >
+                    Copy Share Link
+                  </Button>
+                </div>
+              </>
+            )}
+            {video.status === "COMPLETED" && !video.videoUrl && (
+              <p className="text-sm text-green-600 font-medium">
+                Pipeline completed (no video step — only script{apiKeys.hasElevenLabsKey ? " and audio" : ""} generated).
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Metadata */}
       <Card>

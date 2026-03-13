@@ -11,7 +11,9 @@ import type { VideoRecord } from "@/types";
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
   PENDING: "secondary",
   GENERATING_SCRIPT: "warning",
+  SCRIPT_READY: "warning",
   GENERATING_AUDIO: "warning",
+  AUDIO_READY: "warning",
   GENERATING_VIDEO: "warning",
   COMPLETED: "success",
   FAILED: "destructive",
@@ -57,8 +59,13 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         setTopic("");
-        fetchVideos();
+        if (data.length === 1) {
+          router.push(`/videos/${data[0].id}`);
+        } else {
+          fetchVideos();
+        }
       }
     } catch (error) {
       console.error("Failed to create video:", error);
@@ -70,7 +77,7 @@ export default function DashboardPage() {
     total: videos.length,
     completed: videos.filter((v) => v.status === "COMPLETED").length,
     processing: videos.filter((v) =>
-      ["PENDING", "GENERATING_SCRIPT", "GENERATING_AUDIO", "GENERATING_VIDEO"].includes(v.status)
+      ["PENDING", "GENERATING_SCRIPT", "SCRIPT_READY", "GENERATING_AUDIO", "AUDIO_READY", "GENERATING_VIDEO"].includes(v.status)
     ).length,
     failed: videos.filter((v) => v.status === "FAILED").length,
   };

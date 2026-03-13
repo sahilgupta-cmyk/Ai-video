@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     if (!userId) return unauthorized();
 
     const body = await req.json();
-    const { titles } = body as { titles: string[] };
+    const { titles, category } = body as { titles: string[]; category?: string };
 
     if (!titles || !Array.isArray(titles) || titles.length === 0) {
       return badRequest("At least one topic title is required");
@@ -35,7 +35,11 @@ export async function POST(req: Request) {
         .filter((t) => t.trim())
         .map((title) =>
           prisma.topic.create({
-            data: { userId, title: title.trim() },
+            data: {
+              userId,
+              title: title.trim(),
+              ...(category && { category: category.trim() }),
+            },
           })
         )
     );

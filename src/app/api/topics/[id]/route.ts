@@ -11,7 +11,7 @@ export async function PUT(
     if (!userId) return unauthorized();
 
     const body = await req.json();
-    const { title, notes, used } = body;
+    const { title, notes, used, category } = body;
 
     const topic = await prisma.topic.updateMany({
       where: { id: params.id, userId },
@@ -19,6 +19,7 @@ export async function PUT(
         ...(title !== undefined && { title }),
         ...(notes !== undefined && { notes }),
         ...(used !== undefined && { used }),
+        ...(category !== undefined && { category }),
       },
     });
 

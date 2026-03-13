@@ -1,7 +1,9 @@
 export type VideoStatus =
   | "PENDING"
   | "GENERATING_SCRIPT"
+  | "SCRIPT_READY"
   | "GENERATING_AUDIO"
+  | "AUDIO_READY"
   | "GENERATING_VIDEO"
   | "COMPLETED"
   | "FAILED";
@@ -12,8 +14,10 @@ export type TopicSource = "FROM_LIST" | "AI_GENERATED";
 export interface VideoRecord {
   id: string;
   topic: string;
+  topicId: string | null;
   script: string | null;
   status: VideoStatus;
+  autoApprove: boolean;
   videoUrl: string | null;
   audioUrl: string | null;
   thumbnailUrl: string | null;
@@ -27,6 +31,7 @@ export interface TopicRecord {
   id: string;
   title: string;
   notes: string | null;
+  category: string | null;
   used: boolean;
   createdAt: string;
 }
@@ -54,4 +59,7 @@ export interface UserSettings {
   heygenApiKey: string;
   heygenAvatarId: string;
   elevenLabsVoiceId: string;
+  hasClaudeKey?: boolean;
+  hasElevenLabsKey?: boolean;
+  hasHeygenKey?: boolean;
 }
