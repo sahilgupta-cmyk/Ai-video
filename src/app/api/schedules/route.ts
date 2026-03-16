@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@/lib/api-helpers";
 
+export const dynamic = "force-dynamic";
+
 function getNextRunAt(frequency: string): Date {
   const now = new Date();
   switch (frequency) {

@@ -6,6 +6,8 @@ import { generateSpeech, uploadAudioForHeyGen } from "@/lib/services/tts-service
 import { createAvatarVideo } from "@/lib/services/avatar-service";
 import { saveAudioToDb } from "@/lib/utils/audio-storage";
 
+export const dynamic = "force-dynamic";
+
 
 export async function POST(
   req: Request,

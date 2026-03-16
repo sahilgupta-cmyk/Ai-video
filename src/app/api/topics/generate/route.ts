@@ -5,6 +5,8 @@ import { decrypt } from "@/lib/utils/encryption";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const userId = await getAuthenticatedUserId();

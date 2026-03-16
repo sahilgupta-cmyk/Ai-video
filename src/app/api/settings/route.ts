@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, serverError } from "@/lib/api-helpers";
 import { encrypt, decrypt } from "@/lib/utils/encryption";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const userId = await getAuthenticatedUserId();

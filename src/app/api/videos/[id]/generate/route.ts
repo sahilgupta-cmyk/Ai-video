@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@/lib/api-helpers";
 import { generateScript } from "@/lib/services/script-generator";
 
+export const dynamic = "force-dynamic";
+
 
 export async function POST(
   _req: Request,
