@@ -65,7 +65,7 @@ export async function runVideoPipeline(videoId: string) {
   try {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
-  const { hasScript, hasAudio, hasVideo } = getAvailableSteps(user);
+  const { hasScript } = getAvailableSteps(user);
 
   if (!hasScript) {
     await failVideo(videoId, "No AI API key configured. Please add a Claude or OpenAI key in Settings.");
@@ -87,29 +87,11 @@ export async function runVideoPipeline(videoId: string) {
 
     await prisma.video.update({
       where: { id: videoId },
-      data: { script },
+      data: { script, status: "SCRIPT_READY" },
     });
 
-    // If no further steps available, complete now
-    if (!hasAudio && !hasVideo) {
-      await prisma.video.update({
-        where: { id: videoId },
-        data: { status: "COMPLETED" },
-      });
-      return;
-    }
-
-    // If not auto-approve, pause for user review
-    if (!video.autoApprove) {
-      await prisma.video.update({
-        where: { id: videoId },
-        data: { status: "SCRIPT_READY" },
-      });
-      return;
-    }
-
-    // Auto-approve: continue to audio
-    await continueFromScript(videoId);
+    // Always pause here so the user can review the script.
+    // User clicks "Next" / "Approve" to continue to audio.
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`Pipeline error for video ${videoId}:`, errorMessage);

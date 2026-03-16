@@ -41,7 +41,8 @@ function getStepStatuses(
 
   // Script step
   let script: StepStatus = "locked";
-  if (idx >= 2) script = "completed"; // SCRIPT_READY or beyond
+  if (idx > 2) script = "completed"; // Beyond SCRIPT_READY
+  else if (idx === 2) script = "completed"; // SCRIPT_READY (script is done, awaiting user action)
   else if (idx === 1) script = "active"; // GENERATING_SCRIPT
   else if (idx === 0) script = "waiting"; // PENDING
 
@@ -209,55 +210,53 @@ export default function VideoDetailPage() {
               </div>
             </div>
           </CardHeader>
-          {(video.script || steps.script === "active") && (
-            <CardContent>
-              {steps.script === "active" && !video.script && (
-                <div className="animate-pulse text-muted-foreground">Generating script...</div>
-              )}
-              {video.script && (
-                <>
-                  {editingScript ? (
-                    <Textarea
-                      value={editedScript}
-                      onChange={(e) => setEditedScript(e.target.value)}
-                      rows={12}
-                      className="font-mono text-sm"
-                    />
-                  ) : (
-                    <div className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg max-h-80 overflow-y-auto">
-                      {video.script}
-                    </div>
-                  )}
-                  {video.status === "SCRIPT_READY" && (
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        onClick={() => handleApprove("approve")}
-                        disabled={actionLoading}
-                      >
-                        {actionLoading ? "Processing..." : "Approve Script"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => handleApprove("regenerate")}
-                        disabled={actionLoading}
-                      >
-                        Regenerate
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingScript(!editingScript);
-                          if (!editingScript) setEditedScript(video.script || "");
-                        }}
-                      >
-                        {editingScript ? "Cancel Edit" : "Edit"}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          )}
+          <CardContent>
+            {steps.script === "active" && !video.script && (
+              <div className="animate-pulse text-muted-foreground">Generating script...</div>
+            )}
+            {video.script && (
+              <>
+                {editingScript ? (
+                  <Textarea
+                    value={editedScript}
+                    onChange={(e) => setEditedScript(e.target.value)}
+                    rows={12}
+                    className="font-mono text-sm"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg max-h-80 overflow-y-auto">
+                    {video.script}
+                  </div>
+                )}
+                {video.status === "SCRIPT_READY" && (
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      onClick={() => handleApprove("approve")}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? "Processing..." : "Next: Generate Audio"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleApprove("regenerate")}
+                      disabled={actionLoading}
+                    >
+                      Regenerate
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingScript(!editingScript);
+                        if (!editingScript) setEditedScript(video.script || "");
+                      }}
+                    >
+                      {editingScript ? "Cancel Edit" : "Edit"}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
         </Card>
 
         {/* Step 2: Audio */}
