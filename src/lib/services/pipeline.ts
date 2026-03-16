@@ -15,8 +15,9 @@ interface UserWithKeys {
 }
 
 function getAvailableSteps(user: UserWithKeys) {
-  const hasScript = (user.aiProvider === "openai" && !!user.openaiApiKey) ||
-                    (user.aiProvider === "claude" && !!user.claudeApiKey) ||
+  const provider = user.aiProvider || "claude";
+  const hasScript = (provider === "openai" && !!user.openaiApiKey) ||
+                    (provider === "claude" && !!user.claudeApiKey) ||
                     (!!user.claudeApiKey || !!user.openaiApiKey); // fallback: any key works
   return {
     hasScript,
@@ -26,10 +27,11 @@ function getAvailableSteps(user: UserWithKeys) {
 }
 
 function getScriptApiKey(user: UserWithKeys): { apiKey: string; provider: "claude" | "openai" } {
-  if (user.aiProvider === "openai" && user.openaiApiKey) {
+  const provider = user.aiProvider || "claude";
+  if (provider === "openai" && user.openaiApiKey) {
     return { apiKey: user.openaiApiKey, provider: "openai" };
   }
-  if (user.aiProvider === "claude" && user.claudeApiKey) {
+  if (provider === "claude" && user.claudeApiKey) {
     return { apiKey: user.claudeApiKey, provider: "claude" };
   }
   // Fallback: use whichever key is available
@@ -60,6 +62,7 @@ async function failVideo(videoId: string, errorMessage: string) {
  * Start the pipeline: generate script, then pause or continue based on autoApprove and available APIs.
  */
 export async function runVideoPipeline(videoId: string) {
+  try {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
   const { hasScript, hasAudio, hasVideo } = getAvailableSteps(user);
@@ -68,8 +71,6 @@ export async function runVideoPipeline(videoId: string) {
     await failVideo(videoId, "No AI API key configured. Please add a Claude or OpenAI key in Settings.");
     return;
   }
-
-  try {
     // Step 1: Generate script
     await prisma.video.update({
       where: { id: videoId },
@@ -120,6 +121,7 @@ export async function runVideoPipeline(videoId: string) {
  * Continue pipeline after script approval: generate audio, then pause or continue.
  */
 export async function continueFromScript(videoId: string) {
+  try {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
   const { hasAudio, hasVideo } = getAvailableSteps(user);
@@ -132,8 +134,6 @@ export async function continueFromScript(videoId: string) {
     });
     return;
   }
-
-  try {
     // Step 2: Generate audio
     await prisma.video.update({
       where: { id: videoId },
@@ -188,6 +188,7 @@ export async function continueFromScript(videoId: string) {
  * Continue pipeline after audio approval: generate avatar video.
  */
 export async function continueFromAudio(videoId: string) {
+  try {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
   const { hasVideo } = getAvailableSteps(user);
@@ -199,8 +200,6 @@ export async function continueFromAudio(videoId: string) {
     });
     return;
   }
-
-  try {
     // Step 3: Create avatar video
     await prisma.video.update({
       where: { id: videoId },
@@ -231,10 +230,9 @@ export async function continueFromAudio(videoId: string) {
  * Regenerate script for a video (re-runs script generation).
  */
 export async function regenerateScript(videoId: string) {
+  try {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
-
-  try {
     const { apiKey: scriptApiKey, provider } = getScriptApiKey(user);
 
     await prisma.video.update({
@@ -264,6 +262,7 @@ export async function regenerateScript(videoId: string) {
  * Regenerate audio for a video (re-runs audio generation).
  */
 export async function regenerateAudio(videoId: string) {
+  try {
   const video = await fetchVideoWithUser(videoId);
   const user = video.user;
 
@@ -271,8 +270,6 @@ export async function regenerateAudio(videoId: string) {
     await failVideo(videoId, "No ElevenLabs API key or voice ID configured.");
     return;
   }
-
-  try {
     await prisma.video.update({
       where: { id: videoId },
       data: { status: "GENERATING_AUDIO" },

@@ -97,7 +97,7 @@ export default function VideoDetailPage() {
   const router = useRouter();
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [apiKeys, setApiKeys] = useState({ hasClaudeKey: false, hasElevenLabsKey: false, hasHeygenKey: false });
+  const [apiKeys, setApiKeys] = useState({ hasClaudeKey: false, hasOpenaiKey: false, hasElevenLabsKey: false, hasHeygenKey: false });
   const [editingScript, setEditingScript] = useState(false);
   const [editedScript, setEditedScript] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -124,6 +124,7 @@ export default function VideoDetailPage() {
       .then((data) =>
         setApiKeys({
           hasClaudeKey: data.hasClaudeKey || false,
+          hasOpenaiKey: data.hasOpenaiKey || false,
           hasElevenLabsKey: data.hasElevenLabsKey || false,
           hasHeygenKey: data.hasHeygenKey || false,
         })
