@@ -4,6 +4,7 @@ import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@
 import { generateScript } from "@/lib/services/script-generator";
 import { generateSpeech, uploadAudioForHeyGen } from "@/lib/services/tts-service";
 import { createAvatarVideo } from "@/lib/services/avatar-service";
+import { saveAudioFile } from "@/lib/utils/audio-storage";
 
 
 export async function POST(
@@ -15,9 +16,10 @@ export async function POST(
     if (!userId) return unauthorized();
 
     const body = await req.json();
-    const { action, editedScript } = body as {
+    const { action, editedScript, voiceInstructions } = body as {
       action: "approve" | "regenerate";
       editedScript?: string;
+      voiceInstructions?: string;
     };
 
     if (!action || !["approve", "regenerate"].includes(action)) {
@@ -131,17 +133,20 @@ export async function POST(
           text: scriptText!,
           voiceId: user.elevenLabsVoiceId,
           apiKey: user.elevenLabsApiKey,
+          voiceInstructions,
         });
 
+        // Save audio file to disk for playback
+        const audioUrl = saveAudioFile(video.id, audioData);
+
         const hasVideo = !!user.heygenApiKey && !!user.heygenAvatarId;
-        let audioAssetId = "";
         if (hasVideo) {
-          audioAssetId = await uploadAudioForHeyGen(audioData, user.heygenApiKey!);
+          await uploadAudioForHeyGen(audioData, user.heygenApiKey!);
         }
 
         const updated = await prisma.video.update({
           where: { id: video.id },
-          data: { audioUrl: audioAssetId || "audio-generated", status: "AUDIO_READY" },
+          data: { audioUrl, status: "AUDIO_READY" },
         });
 
         return NextResponse.json({ success: true, video: updated });
@@ -173,15 +178,17 @@ export async function POST(
             apiKey: user.elevenLabsApiKey,
           });
 
+          // Save audio file to disk for playback
+          const audioUrl = saveAudioFile(video.id, audioData);
+
           const hasVideoApi = !!user.heygenApiKey && !!user.heygenAvatarId;
-          let audioAssetId = "";
           if (hasVideoApi) {
-            audioAssetId = await uploadAudioForHeyGen(audioData, user.heygenApiKey!);
+            await uploadAudioForHeyGen(audioData, user.heygenApiKey!);
           }
 
           const updated = await prisma.video.update({
             where: { id: video.id },
-            data: { audioUrl: audioAssetId || "audio-generated", status: "AUDIO_READY" },
+            data: { audioUrl, status: "AUDIO_READY" },
           });
 
           return NextResponse.json({ success: true, video: updated });

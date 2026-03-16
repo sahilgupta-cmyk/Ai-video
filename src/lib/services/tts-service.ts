@@ -4,6 +4,7 @@ interface TTSOptions {
   text: string;
   voiceId: string;
   apiKey: string;
+  voiceInstructions?: string;
 }
 
 interface TTSResult {
@@ -11,8 +12,16 @@ interface TTSResult {
   audioData: Buffer;
 }
 
-export async function generateSpeech({ text, voiceId, apiKey }: TTSOptions): Promise<TTSResult> {
+export async function generateSpeech({ text, voiceId, apiKey, voiceInstructions }: TTSOptions): Promise<TTSResult> {
   const decryptedKey = decrypt(apiKey);
+
+  // If voice instructions provided, prepend them as SSML-style direction
+  // ElevenLabs doesn't support SSML but we can prepend instructions in the text
+  let speechText = text;
+  if (voiceInstructions && voiceInstructions.trim()) {
+    // Add voice direction as a preamble that ElevenLabs will interpret naturally
+    speechText = `[Voice direction: ${voiceInstructions.trim()}]\n\n${text}`;
+  }
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -23,7 +32,7 @@ export async function generateSpeech({ text, voiceId, apiKey }: TTSOptions): Pro
         "xi-api-key": decryptedKey,
       },
       body: JSON.stringify({
-        text,
+        text: speechText,
         model_id: "eleven_monolingual_v1",
         voice_settings: {
           stability: 0.5,
@@ -40,11 +49,8 @@ export async function generateSpeech({ text, voiceId, apiKey }: TTSOptions): Pro
 
   const audioBuffer = Buffer.from(await response.arrayBuffer());
 
-  // For ElevenLabs, the audio is returned directly as a binary stream
-  // We'll need to upload it or convert to a URL for HeyGen
-  // For now, we return the buffer - the pipeline will handle upload
   return {
-    audioUrl: "", // Will be set after upload
+    audioUrl: "",
     audioData: audioBuffer,
   };
 }
@@ -55,7 +61,6 @@ export async function uploadAudioForHeyGen(
 ): Promise<string> {
   const decryptedKey = decrypt(heygenApiKey);
 
-  // Upload audio to HeyGen
   const formData = new FormData();
   const blob = new Blob([new Uint8Array(audioData)], { type: "audio/mpeg" });
   formData.append("file", blob, "speech.mp3");

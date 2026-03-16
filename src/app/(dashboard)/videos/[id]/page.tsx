@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { VideoRecord } from "@/types";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
@@ -103,6 +105,7 @@ export default function VideoDetailPage() {
   const [editedScript, setEditedScript] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [voiceInstructions, setVoiceInstructions] = useState("");
 
   const fetchVideo = useCallback(async () => {
     try {
@@ -167,6 +170,9 @@ export default function VideoDetailPage() {
       const body: Record<string, string> = { action };
       if (action === "approve" && editingScript && editedScript.trim() !== video?.script) {
         body.editedScript = editedScript;
+      }
+      if (voiceInstructions.trim()) {
+        body.voiceInstructions = voiceInstructions.trim();
       }
       const res = await fetch(`/api/videos/${id}/approve`, {
         method: "POST",
@@ -257,29 +263,44 @@ export default function VideoDetailPage() {
                   </div>
                 )}
                 {video.status === "SCRIPT_READY" && (
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      onClick={() => handleApprove("approve")}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading ? "Processing..." : "Next: Generate Audio"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleApprove("regenerate")}
-                      disabled={actionLoading}
-                    >
-                      Regenerate
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingScript(!editingScript);
-                        if (!editingScript) setEditedScript(video.script || "");
-                      }}
-                    >
-                      {editingScript ? "Cancel Edit" : "Edit"}
-                    </Button>
+                  <div className="mt-4 space-y-4">
+                    {/* Voice Instructions */}
+                    <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
+                      <Label className="text-sm font-medium">Voice Instructions (optional)</Label>
+                      <Input
+                        placeholder="e.g., Speak slowly and calmly, with emphasis on key points..."
+                        value={voiceInstructions}
+                        onChange={(e) => setVoiceInstructions(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Add directions for how the script should be read aloud (tone, pace, emphasis, etc.)
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleApprove("approve")}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? "Generating Audio..." : "Next: Generate Audio"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleApprove("regenerate")}
+                        disabled={actionLoading}
+                      >
+                        Regenerate Script
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingScript(!editingScript);
+                          if (!editingScript) setEditedScript(video.script || "");
+                        }}
+                      >
+                        {editingScript ? "Cancel Edit" : "Edit Script"}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </>
@@ -316,12 +337,22 @@ export default function VideoDetailPage() {
             )}
             {(video.status === "AUDIO_READY" || (steps.audio === "completed" && video.audioUrl)) && (
               <>
-                <div className="bg-muted p-4 rounded-lg text-center">
-                  <p className="text-sm text-muted-foreground mb-2">Audio generated successfully</p>
-                  {video.audioUrl && video.audioUrl !== "audio-generated" && (
-                    <audio controls className="w-full mt-2">
+                <div className="bg-muted p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-3">Audio generated successfully. Listen below:</p>
+                  {video.audioUrl && video.audioUrl.startsWith("/api/audio/") && (
+                    <audio controls className="w-full" preload="auto">
                       <source src={video.audioUrl} type="audio/mpeg" />
+                      Your browser does not support audio playback.
                     </audio>
+                  )}
+                  {video.audioUrl && !video.audioUrl.startsWith("/api/audio/") && video.audioUrl !== "audio-generated" && (
+                    <audio controls className="w-full" preload="auto">
+                      <source src={video.audioUrl} type="audio/mpeg" />
+                      Your browser does not support audio playback.
+                    </audio>
+                  )}
+                  {(!video.audioUrl || video.audioUrl === "audio-generated") && (
+                    <p className="text-sm text-yellow-600">Audio was generated but no playback URL is available.</p>
                   )}
                 </div>
                 {video.status === "AUDIO_READY" && (
@@ -330,14 +361,14 @@ export default function VideoDetailPage() {
                       onClick={() => handleApprove("approve")}
                       disabled={actionLoading}
                     >
-                      {actionLoading ? "Processing..." : "Approve Audio"}
+                      {actionLoading ? "Processing..." : "Next: Generate Video"}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => handleApprove("regenerate")}
                       disabled={actionLoading}
                     >
-                      Regenerate
+                      Regenerate Audio
                     </Button>
                   </div>
                 )}
