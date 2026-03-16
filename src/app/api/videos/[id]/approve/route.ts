@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@/lib/api-helpers";
-import { continueFromScript, continueFromAudio, regenerateScript, regenerateAudio } from "@/lib/services/pipeline";
+import { generateScript } from "@/lib/services/script-generator";
+import { generateSpeech, uploadAudioForHeyGen } from "@/lib/services/tts-service";
+import { createAvatarVideo } from "@/lib/services/avatar-service";
+
 
 export async function POST(
   req: Request,
@@ -29,10 +32,73 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        claudeApiKey: true,
+        openaiApiKey: true,
+        aiProvider: true,
+        elevenLabsApiKey: true,
+        elevenLabsVoiceId: true,
+        heygenApiKey: true,
+        heygenAvatarId: true,
+      },
+    });
+
+    if (!user) {
+      return badRequest("User not found");
+    }
+
     if (video.status === "SCRIPT_READY") {
       if (action === "regenerate") {
-        regenerateScript(video.id).catch(console.error);
-        return NextResponse.json({ success: true, status: "GENERATING_SCRIPT" });
+        // Regenerate script synchronously
+        const provider = (user.aiProvider || "claude") as "claude" | "openai";
+        let apiKey: string | null = null;
+        let selectedProvider: "claude" | "openai" = provider;
+
+        if (provider === "openai" && user.openaiApiKey) {
+          apiKey = user.openaiApiKey;
+        } else if (provider === "claude" && user.claudeApiKey) {
+          apiKey = user.claudeApiKey;
+        } else if (user.claudeApiKey) {
+          apiKey = user.claudeApiKey;
+          selectedProvider = "claude";
+        } else if (user.openaiApiKey) {
+          apiKey = user.openaiApiKey;
+          selectedProvider = "openai";
+        }
+
+        if (!apiKey) {
+          return badRequest("No AI API key configured");
+        }
+
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { status: "GENERATING_SCRIPT" },
+        });
+
+        try {
+          const script = await generateScript({
+            topic: video.topic,
+            userId,
+            apiKey,
+            provider: selectedProvider,
+          });
+
+          const updated = await prisma.video.update({
+            where: { id: video.id },
+            data: { script, status: "SCRIPT_READY" },
+          });
+
+          return NextResponse.json({ success: true, video: updated });
+        } catch (genError) {
+          const errorMessage = genError instanceof Error ? genError.message : "Script generation failed";
+          await prisma.video.update({
+            where: { id: video.id },
+            data: { status: "FAILED", errorMessage },
+          });
+          return NextResponse.json({ error: errorMessage }, { status: 500 });
+        }
       }
 
       // Approve — optionally save edited script
@@ -43,18 +109,127 @@ export async function POST(
         });
       }
 
-      continueFromScript(video.id).catch(console.error);
-      return NextResponse.json({ success: true, status: "GENERATING_AUDIO" });
+      const scriptText = editedScript?.trim() || video.script;
+
+      // Check if audio is available
+      if (!user.elevenLabsApiKey || !user.elevenLabsVoiceId) {
+        const updated = await prisma.video.update({
+          where: { id: video.id },
+          data: { status: "COMPLETED" },
+        });
+        return NextResponse.json({ success: true, video: updated });
+      }
+
+      // Generate audio synchronously
+      await prisma.video.update({
+        where: { id: video.id },
+        data: { status: "GENERATING_AUDIO" },
+      });
+
+      try {
+        const { audioData } = await generateSpeech({
+          text: scriptText!,
+          voiceId: user.elevenLabsVoiceId,
+          apiKey: user.elevenLabsApiKey,
+        });
+
+        const hasVideo = !!user.heygenApiKey && !!user.heygenAvatarId;
+        let audioAssetId = "";
+        if (hasVideo) {
+          audioAssetId = await uploadAudioForHeyGen(audioData, user.heygenApiKey!);
+        }
+
+        const updated = await prisma.video.update({
+          where: { id: video.id },
+          data: { audioUrl: audioAssetId || "audio-generated", status: "AUDIO_READY" },
+        });
+
+        return NextResponse.json({ success: true, video: updated });
+      } catch (audioError) {
+        const errorMessage = audioError instanceof Error ? audioError.message : "Audio generation failed";
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { status: "FAILED", errorMessage },
+        });
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
+      }
     }
 
     if (video.status === "AUDIO_READY") {
       if (action === "regenerate") {
-        regenerateAudio(video.id).catch(console.error);
-        return NextResponse.json({ success: true, status: "GENERATING_AUDIO" });
+        if (!user.elevenLabsApiKey || !user.elevenLabsVoiceId) {
+          return badRequest("No ElevenLabs API key or voice ID configured");
+        }
+
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { status: "GENERATING_AUDIO" },
+        });
+
+        try {
+          const { audioData } = await generateSpeech({
+            text: video.script!,
+            voiceId: user.elevenLabsVoiceId,
+            apiKey: user.elevenLabsApiKey,
+          });
+
+          const hasVideoApi = !!user.heygenApiKey && !!user.heygenAvatarId;
+          let audioAssetId = "";
+          if (hasVideoApi) {
+            audioAssetId = await uploadAudioForHeyGen(audioData, user.heygenApiKey!);
+          }
+
+          const updated = await prisma.video.update({
+            where: { id: video.id },
+            data: { audioUrl: audioAssetId || "audio-generated", status: "AUDIO_READY" },
+          });
+
+          return NextResponse.json({ success: true, video: updated });
+        } catch (audioError) {
+          const errorMessage = audioError instanceof Error ? audioError.message : "Audio generation failed";
+          await prisma.video.update({
+            where: { id: video.id },
+            data: { status: "FAILED", errorMessage },
+          });
+          return NextResponse.json({ error: errorMessage }, { status: 500 });
+        }
       }
 
-      continueFromAudio(video.id).catch(console.error);
-      return NextResponse.json({ success: true, status: "GENERATING_VIDEO" });
+      // Approve audio — move to video generation
+      if (!user.heygenApiKey || !user.heygenAvatarId) {
+        const updated = await prisma.video.update({
+          where: { id: video.id },
+          data: { status: "COMPLETED" },
+        });
+        return NextResponse.json({ success: true, video: updated });
+      }
+
+      await prisma.video.update({
+        where: { id: video.id },
+        data: { status: "GENERATING_VIDEO" },
+      });
+
+      try {
+        const heygenVideoId = await createAvatarVideo({
+          avatarId: user.heygenAvatarId,
+          audioAssetId: video.audioUrl!,
+          apiKey: user.heygenApiKey,
+        });
+
+        const updated = await prisma.video.update({
+          where: { id: video.id },
+          data: { heygenVideoId },
+        });
+
+        return NextResponse.json({ success: true, video: updated });
+      } catch (videoError) {
+        const errorMessage = videoError instanceof Error ? videoError.message : "Video generation failed";
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { status: "FAILED", errorMessage },
+        });
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
+      }
     }
 
     return badRequest(`Cannot approve video in status: ${video.status}`);

@@ -102,6 +102,7 @@ export default function VideoDetailPage() {
   const [editingScript, setEditingScript] = useState(false);
   const [editedScript, setEditedScript] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const fetchVideo = useCallback(async () => {
     try {
@@ -117,6 +118,25 @@ export default function VideoDetailPage() {
       console.error("Failed to fetch video");
     }
   }, [id, router, editingScript]);
+
+  // Auto-trigger script generation when video is PENDING
+  useEffect(() => {
+    if (!video || video.status !== "PENDING" || generating) return;
+    setGenerating(true);
+    fetch(`/api/videos/${id}/generate`, { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.id) {
+          setVideo(data);
+          setEditedScript(data.script || "");
+        } else {
+          // Error — refetch to get latest status
+          fetchVideo();
+        }
+      })
+      .catch(() => fetchVideo())
+      .finally(() => setGenerating(false));
+  }, [video, id, generating, fetchVideo]);
 
   useEffect(() => {
     fetchVideo().finally(() => setLoading(false));
@@ -135,7 +155,7 @@ export default function VideoDetailPage() {
 
   useEffect(() => {
     if (!video) return;
-    const needsPolling = !["COMPLETED", "FAILED", "SCRIPT_READY", "AUDIO_READY"].includes(video.status);
+    const needsPolling = ["GENERATING_AUDIO", "GENERATING_VIDEO"].includes(video.status);
     if (!needsPolling) return;
     const interval = setInterval(fetchVideo, 5000);
     return () => clearInterval(interval);
@@ -148,15 +168,23 @@ export default function VideoDetailPage() {
       if (action === "approve" && editingScript && editedScript.trim() !== video?.script) {
         body.editedScript = editedScript;
       }
-      await fetch(`/api/videos/${id}/approve`, {
+      const res = await fetch(`/api/videos/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const data = await res.json();
+      if (data.video) {
+        setVideo(data.video);
+        if (!editingScript) setEditedScript(data.video.script || "");
+      } else {
+        // Fallback: refetch
+        await fetchVideo();
+      }
       setEditingScript(false);
-      setTimeout(fetchVideo, 1000);
     } catch (error) {
       console.error("Action failed:", error);
+      await fetchVideo();
     }
     setActionLoading(false);
   }
@@ -211,8 +239,8 @@ export default function VideoDetailPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {steps.script === "active" && !video.script && (
-              <div className="animate-pulse text-muted-foreground">Generating script...</div>
+            {(video.status === "PENDING" || video.status === "GENERATING_SCRIPT") && !video.script && (
+              <div className="animate-pulse text-muted-foreground">Generating script... This may take a moment.</div>
             )}
             {video.script && (
               <>

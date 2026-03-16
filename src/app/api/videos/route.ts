@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@/lib/api-helpers";
-import { runVideoPipeline } from "@/lib/services/pipeline";
 
 export async function GET() {
   try {
@@ -49,11 +48,7 @@ export async function POST(req: Request) {
       )
     );
 
-    // Kick off the pipeline for each video (non-blocking)
-    for (const video of videos) {
-      runVideoPipeline(video.id).catch(console.error);
-    }
-
+    // Don't run the pipeline here — the video detail page will trigger it
     return NextResponse.json(videos, { status: 201 });
   } catch (error) {
     return serverError(error);
