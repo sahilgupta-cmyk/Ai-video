@@ -47,6 +47,7 @@ model Video {
 
   videoUrl     String?
   audioUrl     String?
+  audioData    String?  @db.Text
   thumbnailUrl String?
   duration     Int?
 

@@ -4,7 +4,7 @@ import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@
 import { generateScript } from "@/lib/services/script-generator";
 import { generateSpeech, uploadAudioForHeyGen } from "@/lib/services/tts-service";
 import { createAvatarVideo } from "@/lib/services/avatar-service";
-import { saveAudioFile } from "@/lib/utils/audio-storage";
+import { saveAudioToDb } from "@/lib/utils/audio-storage";
 
 
 export async function POST(
@@ -137,7 +137,7 @@ export async function POST(
         });
 
         // Save audio file to disk for playback
-        const audioUrl = saveAudioFile(video.id, audioData);
+        const audioUrl = await saveAudioToDb(video.id, audioData);
 
         const hasVideo = !!user.heygenApiKey && !!user.heygenAvatarId;
         if (hasVideo) {
@@ -179,7 +179,7 @@ export async function POST(
           });
 
           // Save audio file to disk for playback
-          const audioUrl = saveAudioFile(video.id, audioData);
+          const audioUrl = await saveAudioToDb(video.id, audioData);
 
           const hasVideoApi = !!user.heygenApiKey && !!user.heygenAvatarId;
           if (hasVideoApi) {

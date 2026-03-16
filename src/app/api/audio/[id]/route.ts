@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, serverError } from "@/lib/api-helpers";
-import * as fs from "fs";
-import * as path from "path";
 
 export async function GET(
   _req: Request,
@@ -14,21 +12,14 @@ export async function GET(
 
     const video = await prisma.video.findFirst({
       where: { id: params.id, userId },
-      select: { id: true, audioUrl: true },
+      select: { id: true, audioData: true },
     });
 
-    if (!video || !video.audioUrl) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!video || !video.audioData) {
+      return NextResponse.json({ error: "Audio not found" }, { status: 404 });
     }
 
-    // Audio is stored as a file path like /audio/<videoId>.mp3
-    const audioPath = path.join(process.cwd(), "uploads", "audio", `${video.id}.mp3`);
-
-    if (!fs.existsSync(audioPath)) {
-      return NextResponse.json({ error: "Audio file not found" }, { status: 404 });
-    }
-
-    const audioBuffer = fs.readFileSync(audioPath);
+    const audioBuffer = Buffer.from(video.audioData, "base64");
 
     return new NextResponse(audioBuffer, {
       headers: {
