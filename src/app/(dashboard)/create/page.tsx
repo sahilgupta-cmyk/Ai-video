@@ -7,7 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SHORT_FORM_DURATIONS, LONG_FORM_DURATIONS } from "@/lib/constants";
+
+type ContentFormat = "long_form" | "short_form";
+type VideoFormatType = "landscape" | "portrait" | "square";
 
 export default function CreatePage() {
   const router = useRouter();
@@ -17,6 +22,9 @@ export default function CreatePage() {
   const [autoApprove, setAutoApprove] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [contentFormat, setContentFormat] = useState<ContentFormat>("long_form");
+  const [targetDuration, setTargetDuration] = useState<number>(180);
+  const [videoFormat, setVideoFormat] = useState<VideoFormatType>("landscape");
   const [apiKeys, setApiKeys] = useState({
     hasClaudeKey: false,
     hasOpenaiKey: false,
@@ -39,6 +47,19 @@ export default function CreatePage() {
       )
       .catch(console.error);
   }, []);
+
+  function handleContentFormatChange(format: ContentFormat) {
+    setContentFormat(format);
+    if (format === "short_form") {
+      setVideoFormat("portrait");
+      setTargetDuration(60);
+    } else {
+      setVideoFormat("landscape");
+      setTargetDuration(180);
+    }
+  }
+
+  const durations = contentFormat === "short_form" ? SHORT_FORM_DURATIONS : LONG_FORM_DURATIONS;
 
   async function handleCreate() {
     setError("");
@@ -72,7 +93,13 @@ export default function CreatePage() {
       const res = await fetch("/api/videos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics, autoApprove }),
+        body: JSON.stringify({
+          topics,
+          autoApprove,
+          contentFormat,
+          targetDuration,
+          videoFormat,
+        }),
       });
 
       if (res.ok) {
@@ -187,6 +214,89 @@ export default function CreatePage() {
               </p>
             </div>
           )}
+
+          {/* Content Format */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Content Format</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={contentFormat === "long_form" ? "default" : "outline"}
+                onClick={() => handleContentFormatChange("long_form")}
+                className="flex-1"
+              >
+                Long Form
+              </Button>
+              <Button
+                type="button"
+                variant={contentFormat === "short_form" ? "default" : "outline"}
+                onClick={() => handleContentFormatChange("short_form")}
+                className="flex-1"
+              >
+                Short Form (Reels)
+              </Button>
+            </div>
+            {contentFormat === "short_form" && (
+              <p className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-400 p-2 rounded">
+                Script will be optimized with attention-grabbing hooks, punchy delivery, and reel best practices. Voice will be auto-set to energetic, fast-paced delivery.
+              </p>
+            )}
+          </div>
+
+          {/* Duration */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Duration</Label>
+            <Select
+              value={String(targetDuration)}
+              onChange={(e) => setTargetDuration(Number(e.target.value))}
+            >
+              {durations.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label} (~{d.words} words)
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          {/* Video Format */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Video Format</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={videoFormat === "landscape" ? "default" : "outline"}
+                onClick={() => setVideoFormat("landscape")}
+                className="flex-1"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-4 border-2 border-current rounded-sm" />
+                  16:9
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant={videoFormat === "portrait" ? "default" : "outline"}
+                onClick={() => setVideoFormat("portrait")}
+                className="flex-1"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-3 h-5 border-2 border-current rounded-sm" />
+                  9:16
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant={videoFormat === "square" ? "default" : "outline"}
+                onClick={() => setVideoFormat("square")}
+                className="flex-1"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4 border-2 border-current rounded-sm" />
+                  1:1
+                </span>
+              </Button>
+            </div>
+          </div>
 
           {/* Auto-approve toggle */}
           <div className="flex items-center justify-between p-3 rounded-lg border">

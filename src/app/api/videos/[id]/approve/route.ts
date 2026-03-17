@@ -5,6 +5,7 @@ import { generateScript } from "@/lib/services/script-generator";
 import { generateSpeech, uploadAudioForHeyGen } from "@/lib/services/tts-service";
 import { createAvatarVideo } from "@/lib/services/avatar-service";
 import { saveAudioToDb } from "@/lib/utils/audio-storage";
+import { getTargetWords } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -82,16 +83,20 @@ export async function POST(
         });
 
         try {
-          const script = await generateScript({
+          const targetWords = getTargetWords(video.contentFormat, video.targetDuration);
+          const { script, voiceStyle } = await generateScript({
             topic: video.topic,
             userId,
             apiKey,
             provider: selectedProvider,
+            contentFormat: video.contentFormat,
+            targetDuration: video.targetDuration,
+            targetWords,
           });
 
           const updated = await prisma.video.update({
             where: { id: video.id },
-            data: { script, status: "SCRIPT_READY" },
+            data: { script, voiceStyle, status: "SCRIPT_READY" },
           });
 
           return NextResponse.json({ success: true, video: updated });
@@ -135,7 +140,7 @@ export async function POST(
           text: scriptText!,
           voiceId: user.elevenLabsVoiceId,
           apiKey: user.elevenLabsApiKey,
-          voiceInstructions,
+          voiceInstructions: voiceInstructions || video.voiceStyle || undefined,
         });
 
         // Save audio file to disk for playback
@@ -223,6 +228,7 @@ export async function POST(
           avatarId: user.heygenAvatarId,
           audioAssetId: video.audioUrl!,
           apiKey: user.heygenApiKey,
+          videoFormat: (video.videoFormat as "landscape" | "portrait" | "square") || undefined,
         });
 
         const updated = await prisma.video.update({

@@ -51,6 +51,11 @@ model Video {
   thumbnailUrl String?
   duration     Int?
 
+  contentFormat  String?  // "long_form" | "short_form"
+  targetDuration Int?     // target duration in seconds
+  videoFormat    String?  // "landscape" | "portrait" | "square"
+  voiceStyle     String?  // auto-generated voice direction for TTS
+
   errorMessage String?
 
   createdAt DateTime @default(now())

@@ -106,6 +106,7 @@ export default function VideoDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [voiceInstructions, setVoiceInstructions] = useState("");
+  const [voiceStyleLoaded, setVoiceStyleLoaded] = useState(false);
 
   const fetchVideo = useCallback(async () => {
     try {
@@ -155,6 +156,14 @@ export default function VideoDetailPage() {
       )
       .catch(console.error);
   }, [fetchVideo]);
+
+  // Pre-populate voice instructions from auto-generated voiceStyle
+  useEffect(() => {
+    if (video?.voiceStyle && !voiceStyleLoaded && !voiceInstructions) {
+      setVoiceInstructions(video.voiceStyle);
+      setVoiceStyleLoaded(true);
+    }
+  }, [video, voiceStyleLoaded, voiceInstructions]);
 
   useEffect(() => {
     if (!video) return;
@@ -471,6 +480,24 @@ export default function VideoDetailPage() {
               <div>
                 <dt className="text-muted-foreground">Duration</dt>
                 <dd>{Math.floor(video.duration / 60)}m {video.duration % 60}s</dd>
+              </div>
+            )}
+            {video.contentFormat && (
+              <div>
+                <dt className="text-muted-foreground">Content Format</dt>
+                <dd>{video.contentFormat === "short_form" ? "Short Form (Reels)" : "Long Form"}</dd>
+              </div>
+            )}
+            {video.targetDuration && (
+              <div>
+                <dt className="text-muted-foreground">Target Duration</dt>
+                <dd>{video.targetDuration >= 120 ? `${Math.round(video.targetDuration / 60)}min` : `${video.targetDuration}s`}</dd>
+              </div>
+            )}
+            {video.videoFormat && (
+              <div>
+                <dt className="text-muted-foreground">Video Format</dt>
+                <dd className="capitalize">{video.videoFormat === "portrait" ? "Portrait (9:16)" : video.videoFormat === "square" ? "Square (1:1)" : "Landscape (16:9)"}</dd>
               </div>
             )}
           </dl>

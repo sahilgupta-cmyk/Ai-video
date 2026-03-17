@@ -26,10 +26,13 @@ export async function POST(req: Request) {
     if (!userId) return unauthorized();
 
     const body = await req.json();
-    const { topics, autoApprove, topicId } = body as {
+    const { topics, autoApprove, topicId, contentFormat, targetDuration, videoFormat } = body as {
       topics: string[];
       autoApprove?: boolean;
       topicId?: string;
+      contentFormat?: string;
+      targetDuration?: number;
+      videoFormat?: string;
     };
 
     if (!topics || !Array.isArray(topics) || topics.length === 0) {
@@ -44,6 +47,9 @@ export async function POST(req: Request) {
             topic: topic.trim(),
             topicId: topicId || null,
             autoApprove: autoApprove ?? false,
+            contentFormat: contentFormat || null,
+            targetDuration: targetDuration || null,
+            videoFormat: videoFormat || null,
             status: "PENDING",
           },
         })

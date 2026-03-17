@@ -1,9 +1,11 @@
 import { decrypt } from "@/lib/utils/encryption";
+import { VIDEO_DIMENSIONS } from "@/lib/constants";
 
 interface CreateVideoOptions {
   avatarId: string;
   audioAssetId: string;
   apiKey: string;
+  videoFormat?: "landscape" | "portrait" | "square";
 }
 
 interface VideoStatus {
@@ -18,8 +20,10 @@ export async function createAvatarVideo({
   avatarId,
   audioAssetId,
   apiKey,
+  videoFormat,
 }: CreateVideoOptions): Promise<string> {
   const decryptedKey = decrypt(apiKey);
+  const dimension = VIDEO_DIMENSIONS[videoFormat || "landscape"];
 
   const response = await fetch("https://api.heygen.com/v2/video/generate", {
     method: "POST",
@@ -42,8 +46,8 @@ export async function createAvatarVideo({
         },
       ],
       dimension: {
-        width: 1920,
-        height: 1080,
+        width: dimension.width,
+        height: dimension.height,
       },
     }),
   });

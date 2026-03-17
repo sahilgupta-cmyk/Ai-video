@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { generateScript } from "./script-generator";
 import { generateSpeech, uploadAudioForHeyGen } from "./tts-service";
 import { createAvatarVideo } from "./avatar-service";
+import { getTargetWords } from "@/lib/constants";
 
 interface UserWithKeys {
   id: string;
@@ -78,16 +79,20 @@ export async function runVideoPipeline(videoId: string) {
     });
 
     const { apiKey: scriptApiKey, provider } = getScriptApiKey(user);
-    const script = await generateScript({
+    const targetWords = getTargetWords(video.contentFormat, video.targetDuration);
+    const { script, voiceStyle } = await generateScript({
       topic: video.topic,
       userId: user.id,
       apiKey: scriptApiKey,
       provider,
+      contentFormat: video.contentFormat,
+      targetDuration: video.targetDuration,
+      targetWords,
     });
 
     await prisma.video.update({
       where: { id: videoId },
-      data: { script, status: "SCRIPT_READY" },
+      data: { script, voiceStyle, status: "SCRIPT_READY" },
     });
 
     // Always pause here so the user can review the script.
@@ -126,6 +131,7 @@ export async function continueFromScript(videoId: string) {
       text: video.script!,
       voiceId: user.elevenLabsVoiceId!,
       apiKey: user.elevenLabsApiKey!,
+      voiceInstructions: video.voiceStyle || undefined,
     });
 
     // Upload to HeyGen if we have video capability, otherwise store audio reference
@@ -192,6 +198,7 @@ export async function continueFromAudio(videoId: string) {
       avatarId: user.heygenAvatarId!,
       audioAssetId: video.audioUrl!,
       apiKey: user.heygenApiKey!,
+      videoFormat: (video.videoFormat as "landscape" | "portrait" | "square") || undefined,
     });
 
     await prisma.video.update({
@@ -222,16 +229,20 @@ export async function regenerateScript(videoId: string) {
       data: { status: "GENERATING_SCRIPT" },
     });
 
-    const script = await generateScript({
+    const targetWords = getTargetWords(video.contentFormat, video.targetDuration);
+    const { script, voiceStyle } = await generateScript({
       topic: video.topic,
       userId: user.id,
       apiKey: scriptApiKey,
       provider,
+      contentFormat: video.contentFormat,
+      targetDuration: video.targetDuration,
+      targetWords,
     });
 
     await prisma.video.update({
       where: { id: videoId },
-      data: { script, status: "SCRIPT_READY" },
+      data: { script, voiceStyle, status: "SCRIPT_READY" },
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -261,6 +272,7 @@ export async function regenerateAudio(videoId: string) {
       text: video.script!,
       voiceId: user.elevenLabsVoiceId,
       apiKey: user.elevenLabsApiKey,
+      voiceInstructions: video.voiceStyle || undefined,
     });
 
     const hasVideo = !!user.heygenApiKey && !!user.heygenAvatarId;

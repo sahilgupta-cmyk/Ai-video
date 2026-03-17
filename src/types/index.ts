@@ -22,6 +22,10 @@ export interface VideoRecord {
   audioUrl: string | null;
   thumbnailUrl: string | null;
   duration: number | null;
+  contentFormat: string | null;
+  targetDuration: number | null;
+  videoFormat: string | null;
+  voiceStyle: string | null;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
@@ -53,6 +57,8 @@ export interface MemoryRecord {
   value: string;
 }
 
+export type ContentFormat = "long_form" | "short_form";
+export type VideoFormat = "landscape" | "portrait" | "square";
 export type AIProvider = "claude" | "openai";
 
 export interface UserSettings {

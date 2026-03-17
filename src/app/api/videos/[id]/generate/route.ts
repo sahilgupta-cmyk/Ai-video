@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUserId, unauthorized, badRequest, serverError } from "@/lib/api-helpers";
 import { generateScript } from "@/lib/services/script-generator";
+import { getTargetWords } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -76,16 +77,20 @@ export async function POST(
     }
 
     try {
-      const script = await generateScript({
+      const targetWords = getTargetWords(video.contentFormat, video.targetDuration);
+      const { script, voiceStyle } = await generateScript({
         topic: video.topic,
         userId,
         apiKey,
         provider: selectedProvider,
+        contentFormat: video.contentFormat,
+        targetDuration: video.targetDuration,
+        targetWords,
       });
 
       const updated = await prisma.video.update({
         where: { id: video.id },
-        data: { script, status: "SCRIPT_READY" },
+        data: { script, voiceStyle, status: "SCRIPT_READY" },
       });
 
       return NextResponse.json(updated);
