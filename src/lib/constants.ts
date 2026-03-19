@@ -19,11 +19,17 @@ export const VIDEO_DIMENSIONS = {
 } as const;
 
 export const VOICE_STYLES = {
-  short_form:
-    "Energetic and fast-paced delivery. Punch the opening hook hard to grab attention. Keep momentum high, no dead air. Speak with urgency and excitement.",
-  long_form:
-    "Conversational, warm, and measured pace. Natural pauses between sections. Emphasize key points clearly. Relaxed but engaging tone.",
+  short_form: "energetic",
+  long_form: "conversational",
 } as const;
+
+export const VOICE_STYLE_OPTIONS = [
+  { value: "", label: "Default" },
+  { value: "energetic", label: "Energetic & Fast-paced" },
+  { value: "conversational", label: "Conversational & Warm" },
+  { value: "calm", label: "Calm & Measured" },
+  { value: "dramatic", label: "Dramatic & Intense" },
+] as const;
 
 export function getTargetWords(
   contentFormat: string | null,

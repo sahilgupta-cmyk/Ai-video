@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { VideoRecord } from "@/types";
+import { VOICE_STYLE_OPTIONS } from "@/lib/constants";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
   PENDING: "secondary",
@@ -173,11 +173,14 @@ export default function VideoDetailPage() {
     return () => clearInterval(interval);
   }, [video, fetchVideo]);
 
-  async function handleApprove(action: "approve" | "regenerate") {
+  async function handleApprove(action: "approve" | "regenerate" | "edit_script") {
     setActionLoading(true);
     try {
       const body: Record<string, string> = { action };
       if (action === "approve" && editingScript && editedScript.trim() !== video?.script) {
+        body.editedScript = editedScript;
+      }
+      if (action === "edit_script" && editedScript.trim()) {
         body.editedScript = editedScript;
       }
       if (voiceInstructions.trim()) {
@@ -259,7 +262,7 @@ export default function VideoDetailPage() {
             )}
             {video.script && (
               <>
-                {editingScript ? (
+                {editingScript && video.status === "SCRIPT_READY" ? (
                   <Textarea
                     value={editedScript}
                     onChange={(e) => setEditedScript(e.target.value)}
@@ -273,16 +276,22 @@ export default function VideoDetailPage() {
                 )}
                 {video.status === "SCRIPT_READY" && (
                   <div className="mt-4 space-y-4">
-                    {/* Voice Instructions */}
+                    {/* Voice Style */}
                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
-                      <Label className="text-sm font-medium">Voice Instructions (optional)</Label>
-                      <Input
-                        placeholder="e.g., Speak slowly and calmly, with emphasis on key points..."
+                      <Label className="text-sm font-medium">Voice Style</Label>
+                      <select
                         value={voiceInstructions}
                         onChange={(e) => setVoiceInstructions(e.target.value)}
-                      />
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {VOICE_STYLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
                       <p className="text-xs text-muted-foreground">
-                        Add directions for how the script should be read aloud (tone, pace, emphasis, etc.)
+                        Controls voice delivery style (pace, energy, emphasis)
                       </p>
                     </div>
 
@@ -365,20 +374,54 @@ export default function VideoDetailPage() {
                   )}
                 </div>
                 {video.status === "AUDIO_READY" && (
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      onClick={() => handleApprove("approve")}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading ? "Processing..." : "Next: Generate Video"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleApprove("regenerate")}
-                      disabled={actionLoading}
-                    >
-                      Regenerate Audio
-                    </Button>
+                  <div className="space-y-4 mt-4">
+                    {editingScript ? (
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Edit Script</Label>
+                        <Textarea
+                          value={editedScript}
+                          onChange={(e) => setEditedScript(e.target.value)}
+                          rows={10}
+                          className="font-mono text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleApprove("edit_script")}
+                            disabled={actionLoading}
+                          >
+                            {actionLoading ? "Regenerating Audio..." : "Save & Regenerate Audio"}
+                          </Button>
+                          <Button variant="ghost" onClick={() => setEditingScript(false)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => handleApprove("approve")}
+                          disabled={actionLoading}
+                        >
+                          {actionLoading ? "Processing..." : "Next: Generate Video"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleApprove("regenerate")}
+                          disabled={actionLoading}
+                        >
+                          Regenerate Audio
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingScript(true);
+                            setEditedScript(video.script || "");
+                          }}
+                        >
+                          Edit Script
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
